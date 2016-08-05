@@ -7,6 +7,11 @@ class SaveChatLadyShell extends Shell
 {
     public function main()
     {
-        $this->out('Hello world.');
+        parent::initialize();
+        $this->out('start task');
+        $this->loadModel('Ladies');
+        $this->Ladies->action();
+        $this->out('end task');
     }
+
 }

@@ -69,6 +69,10 @@ legend {
     height: 3.5rem;
 }
 
+.index_item {
+  float:left;
+}
+
 .index .index_img{
   width:120px;
   height:90px;
@@ -117,6 +121,7 @@ ul.pagination .disabled:hover a {
 }
 
 .paginator {
+	clear:both;
     text-align: center;
 }
 
@@ -195,6 +200,10 @@ input[type=radio] {
 
 .view h2 {
     color: #6F6F6F;
+}
+
+.view_img:hover{
+    opacity:0.4;
 }
 
 .view .columns.strings {

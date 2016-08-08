@@ -187,6 +187,8 @@ class LadiesTable extends Table
         $girlName =( !empty( $this->getPropertyFromElement( $nameEle ))) ? $this->getPropertyFromElement( $nameEle ) :"";
         $imageUrl =( !empty( $this->getGirlImageURL( $girlId ))) ? $this->getGirlImageURL( $girlId ) : "";
 
+
+
         $data =[
                 'code'      => $girlId,
                 'name'      => $girlName,
@@ -198,6 +200,7 @@ class LadiesTable extends Table
 
         return $data;
     }
+
 
     /**
      * データベースにエンティティを登録する

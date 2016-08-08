@@ -71,6 +71,7 @@ legend {
 
 .index_item {
   float:left;
+  margin:0 auto;
 }
 
 .index .index_img{
@@ -592,4 +593,17 @@ div.message.hidden {
     margin-top: 20px;
     margin-bottom: 10px;
     border-bottom: 0px;
+}
+.search_box{
+
+}
+
+.search_box .small_box{
+    float:right;
+    width:15%;
+}
+
+.search_box .button{
+    float:right;
+    clear:both;
 }

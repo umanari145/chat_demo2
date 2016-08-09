@@ -18,7 +18,7 @@ class LadiesController extends AppController
      */
     public function index()
     {
-        $query = $this->getQuery( $this->request->query );
+        $query  = $this->getQuery( $this->request->query );
         $ladies = $this->paginate($query);
 
         $this->set(compact('ladies'));

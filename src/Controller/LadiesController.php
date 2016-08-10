@@ -112,25 +112,34 @@ class LadiesController extends AppController
 
     /**
      * クエリを取得
-     * @param unknown $query クエリオブジェクト
+     *
+     * @param unknown $query
+     *            クエリオブジェクト
      * @return query クエリオブジェクト
      */
-    private function getQuery( $query )
-    {
-        $searchWord = ( !empty($query['keyword']) ) ? $query['keyword']: "";
+    private function getQuery($query) {
+        $searchWord = (! empty ( $query ['keyword'] )) ? $query ['keyword'] : "";
         $conditions;
-        if( !empty($searchWord) ) {
+        if (! empty ( $searchWord )) {
 
-            $conditions = [ 'conditions' => [
-                 'Ladies.name LIKE' => '%' . $searchWord .'%']
+            $conditions = [
+                    'conditions' => [
+                            'OR' => [
+                                        [
+                                            'Ladies.name LIKE' => '%' . $searchWord . '%'
+                                        ],
+                                        [
+                                            'Ladies.profile LIKE' => '%' . $searchWord . '%'
+                                        ]
+                                    ]
+                    ]
             ];
-
         }
 
-        if( !empty($conditions) ){
-             $query = $this->Ladies->find('all' , $conditions);
+        if (! empty ( $conditions )) {
+            $query = $this->Ladies->find ( 'all', $conditions );
         } else {
-             $query = $this->Ladies->find('all');
+            $query = $this->Ladies->find ( 'all' );
         }
 
         return $query;

@@ -81,19 +81,6 @@ class LadiesTable extends Table
         return $validator;
     }
 
-    /**
-     * スクレイピングの起動
-     *
-     * 1 ladyId => 'ステータス状態'のハッシュを取得
-     * 2 ladyIdが存在しているか否かの確認し、存在していない場合、登録
-     */
-    public function action()
-    {
-        $totalLadyHash = $this->getParsedHTMLContents(Constant::DMM_URL);
-        $totalLadyIdList = array_keys( $totalLadyHash );
-        $this->isExistLadyAndRegist( $totalLadyIdList );
-
-    }
 
     /**
      * メインのコントローラー(ここで処理を行う)
@@ -101,7 +88,7 @@ class LadiesTable extends Table
      * @param スクレイピング対象のURL
      * @return 女性のidのハッシュ
      */
-    private function getParsedHTMLContents( $url = "" )
+    public function getParsedHTMLContents( $url = "" )
     {
 
         if ( empty ( $url )) return false;
@@ -135,7 +122,7 @@ class LadiesTable extends Table
      *
      * @param unknown $totalLadyIdHash
      */
-    private function isExistLadyAndRegist( $totalLadyIdList )
+    public function isExistLadyAndRegist( $totalLadyIdList )
     {
         $chatladyIdHash = $this->getRegistredChatLadyId();
         $chatladyHashArr;
@@ -248,7 +235,7 @@ class LadiesTable extends Table
      * @return チャットレディのidのハッシュ
      *
      **/
-    private function getRegistredChatLadyId()
+    public function getRegistredChatLadyId()
     {
         $ladies = TableRegistry::get('Ladies');
 
@@ -303,212 +290,4 @@ class LadiesTable extends Table
         return $ladyIdHashFinal;
     }
 
-    /**
-     * ログイン状態と非ログイン状態のスタッフを分ける
-     *
-     * @param unknown $ladyIdHashFinal ログインユーザーのcharacter_id
-     * @param unknown $allCharacterIdList character_idのデータ
-     * @return ログイン/非ログインごとのユーザーのデータ
-     */
-    private function getLoginStaffUserList( $ladyIdHashFinal, $allCharacterIdList ) {
-
-        $UserList =[
-                'login'    => [],
-                'not_login'    =>[]
-        ];
-
-        foreach ( $allCharacterIdList as $characterId ) {
-
-            if( isset($ladyIdHashFinal[$characterId]) === true ) {
-                #ログインしているユーザー
-                $UserList['login'][] = [
-                'character_id'   => $characterId,
-                'working_status' => $this->getWorkingStatusNum( $ladyIdHashFinal[$characterId])
-                ];
-            } else {
-                #ログインしていないユーザー
-                $UserList['not_login'][] = [
-                'character_id'   => $characterId
-                ];
-            }
-        }
-        return $UserList;
-    }
-
-    /**
-     * ログイン時の状態を文字列から数字で返す
-     *
-     * @param string $working_status_str 文字列waiting(1),party(2),twoshot(3)
-     * @return number 数値
-     */
-    private function getWorkingStatusNum( $working_status_str ="") {
-
-        $working_status_num;
-        switch( $working_status_str){
-            case 'waiting':
-                $working_status_num = 1;
-                break;
-            case 'party':
-                $working_status_num = 2;
-                break;
-            case 'twoshot':
-                $working_status_num = 3;
-                break;
-            default:
-                break;
-        }
-        return $working_status_num;
-    }
-
-    /**
-     * ログインデータを記録する
-     *
-     * @param unknown $userList ログイン者と非ログイン者のデータ
-     */
-    private function registLoginStaffData( $userList =[]){
-
-        foreach ( $userList['login'] as $userData ) {
-            $this->divLoginStatus( $userData ,true );
-        }
-
-        foreach ( $userList['not_login'] as $userData2 ) {
-            $this->divLoginStatus( $userData2 ,false );
-        }
-        $sqlLog = $this->getDataSource()->getLog(false, false);
-        debug($sqlLog , false);
-
-    }
-
-    /**
-     * ログインステータスの判定とデータの更新
-     *
-     * @param unknown $userData ユーザーデータ(user_idの入ったデータ)
-     * @param string $isLogin true(ログイン中)/false(ログインしていない)
-     */
-    private function divLoginStatus($userData = [], $isLogin = true) {
-
-        if ($isLogin === true) {
-            //ログインユーザー
-            //今現在ログインをしていて
-            $hasLoginData = $this->hasLogin( $userData['character_id']);
-
-            if( $hasLoginData !== false ) {
-                //ステータス変更あり
-                if( $hasLoginData['working_status'] != $userData['working_status'] ) {
-                    //以前のステータス情報を閉じる
-                    $this->updateUserLoginStatus( $hasLoginData, "2");
-                    //新規の記録の場合は何もしない
-                    $this->updateUserLoginStatus( $userData, "1");
-                }
-                //ステータス変更ない場合は何もしない
-
-            } else {
-                //ログイン記録がない場合は新規の記録
-                $this->updateUserLoginStatus( $userData, "1");
-            }
-
-        } else {
-            //非ログインユーザー
-            //今現在ログインをしていなくて前回処理時にログインがある→ログイン終了をする
-            $hasLoginData = $this->hasLogin( $userData['character_id']);
-            if( $hasLoginData !== false ) {
-                $this->updateUserLoginStatus( $hasLoginData, "2");
-            }
-        }
-    }
-
-    /**
-     * ログイン中か否か
-     *
-     * @param string $character_id キャラクターID
-     * @return boolean true(ログイン中) / false (ログインしていない)
-     */
-    private function hasLogin( $character_id = null ) {
-        $hasLoginData = $this->find ( 'first', [
-                'conditions' => [
-                        'character_id' => $character_id,
-                        'login_status' => 1
-                ]
-        ] );
-        return ( count($hasLoginData) > 0 ) ? $hasLoginData["Logintime"] : false;
-    }
-
-
-    /**
-     * ログインステータスを更新する(新規ログインの開始/既存ログインの終了)
-     *
-     * @param string $userData (新規ログイン開始時はcharacter_d / 既存ログイン終了時はLogintimeのid)
-     * @param string $status 1=ログイン開始 2=ログイン終了
-     * @return true(成功) / false (失敗)
-     */
-    private function updateUserLoginStatus( $userData = null, $status ="" ) {
-        $data = [
-                'login_status'     => $status
-        ];
-
-        if( empty($status) ) return false;
-
-        if( empty( $userData['character_id']) && empty($userData['id']) ) {
-            return false;
-        }
-
-        switch( $status ){
-            case '1':
-                //新規ログイン記録
-                //userDataはUserから取得したデータ
-                $data['character_id'] = $userData['character_id'];
-                $data['login_start_time'] = date('Y-m-d H:i:s');
-                $data['login_status'] = 1;
-                $data['working_status'] = $userData['working_status'];
-                break;
-            case '2':
-                //ログイン終了
-                //userDataはログイン中のLogintimeのデータ
-                $data['id'] = $userData['id'];
-                $data['login_end_time'] = date('Y-m-d H:i:s');
-                $data['login_status'] = 2;
-                break;
-            default:
-                break;
-        }
-
-        $this->create();
-        $this->save( $data);
-        return true;
-    }
-
-    /**
-     * ある対象期間(yyyy/MM)のログイン時間を取得する
-     *
-     * @param string $targetId 対象者id
-     * @param string $targetMonthVal 対象期間(yyyy/MM)
-     * @return int ログイン時間(秒)
-     */
-    private function getLoginSumTimeByTargetMonth( $targetId="" ,$targetMonthVal="") {
-
-        if( empty( $targetId) ) return false;
-
-        $dateUtility = new DateUtility();
-        list( $startTime, $endTime ) = $dateUtility->getMonthStartAndEnd( $targetMonth );
-
-        $conditions =[
-                'fields' =>[
-                        'SUM(UNIX_TIMESTAMP(Logintime.login_end_time)-UNIX_TIMESTAMP(Logintime.login_start_time)) as login_sum_time',
-                ],
-                'conditions' =>[
-                        'Logintime.character_id' => $targetId,
-                        'Logintime.login_status' => 2,
-                        'Logintime.login_end_time >= ' => $startTime,
-                        'Logintime.login_end_time <= ' => $endTime
-                ],
-        ];
-
-        $loginData = $this->find('first', $conditions );
-
-        if (!empty( $loginData[0]['login_sum_time'] ) ) {
-            return $loginData[0]['login_sum_time'];
-        } else {
-            return false;
-        }
-    }
 }

@@ -25,9 +25,9 @@ class SaveChatLadyShell extends Shell
 
         $totalLadyHash = $this->Ladies->getParsedHTMLContents(Constant::DMM_URL);
 
-        //$totalLadyIdList = array_keys( $totalLadyHash );
+        $totalLadyIdList = array_keys( $totalLadyHash );
 
-        //$this->isExistLadyAndRegist( $totalLadyIdList );
+        $this->Ladies->isExistLadyAndRegist( $totalLadyIdList );
 
         $chatLadyIdList  = $this->Ladies->find('all')->select(['code'])->where(['is_delete' => false ])->hydrate(false)->toList();
         $collection      = new Collection($chatLadyIdList);

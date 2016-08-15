@@ -4,6 +4,7 @@ namespace App\Model\Table;
 use Cake\ORM\Query;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
+use Cake\ORM\TableRegistry;
 use Cake\Validation\Validator;
 use App\Util\Constant;
 use Cake\Collection\Collection;
@@ -42,9 +43,9 @@ class LogintimesTable extends Table
 
         $this->addBehavior('Timestamp');
 
-        $this->belongsTo('Ladies', [
-            'foreignKey' => 'ladies_id'
-        ]);
+//        $this->belongsTo('Ladies', [
+//            'foreignKey' => 'ladies_id'
+//        ]);
     }
 
     /**
@@ -92,7 +93,7 @@ class LogintimesTable extends Table
      */
     public function buildRules(RulesChecker $rules)
     {
-        $rules->add($rules->existsIn(['ladies_id'], 'Ladies'));
+        //$rules->add($rules->existsIn(['ladies_id'], 'Ladies'));
 
         return $rules;
     }
@@ -107,8 +108,8 @@ class LogintimesTable extends Table
     public function getLoginUserList( $ladyIdHashFinal, $allCharacterIdList ) {
 
         $UserList =[
-                'login'    => [],
-                'not_login'    =>[]
+                'login'        => [],
+                'not_login'    => []
         ];
 
         foreach ( $allCharacterIdList as $characterId ) {
@@ -159,17 +160,18 @@ class LogintimesTable extends Table
      *
      * @param unknown $userList ログイン者と非ログイン者のデータ
      */
-    private function registLoginStaffData( $userList =[]){
+    public function registLoginStaffData( $userList =[]){
+
+        //$loginLadiesHashArr = $this->getLoginedLadiesHash();
 
         foreach ( $userList['login'] as $userData ) {
             $this->divLoginStatus( $userData ,true );
         }
 
+
         foreach ( $userList['not_login'] as $userData2 ) {
             $this->divLoginStatus( $userData2 ,false );
         }
-        $sqlLog = $this->getDataSource()->getLog(false, false);
-        debug($sqlLog , false);
 
     }
 
@@ -178,8 +180,9 @@ class LogintimesTable extends Table
      *
      * @param unknown $userData ユーザーデータ(user_idの入ったデータ)
      * @param string $isLogin true(ログイン中)/false(ログインしていない)
+     * @param $loginLadiesHashArr すでにログインしているチャットレディのハッシュid
      */
-    private function divLoginStatus($userData = [], $isLogin = true) {
+    private function divLoginStatus($userData = [], $isLogin = true /**$loginLadiesHashArr**/ ) {
 
         if ($isLogin === true) {
             //ログインユーザー
@@ -190,15 +193,16 @@ class LogintimesTable extends Table
                 //ステータス変更あり
                 if( $hasLoginData['working_status'] != $userData['working_status'] ) {
                     //以前のステータス情報を閉じる
-                    $this->updateUserLoginStatus( $hasLoginData, "2");
+                    $this->updateUserLoginStatus( $hasLoginData, Constant::LOGIN_STATUS_FINISH );
                     //新規の記録の場合は何もしない
-                    $this->updateUserLoginStatus( $userData, "1");
+                    $this->updateUserLoginStatus( $userData, Constant::LOGIN_STATUS_START );
                 }
                 //ステータス変更ない場合は何もしない
 
             } else {
+
                 //ログイン記録がない場合は新規の記録
-                $this->updateUserLoginStatus( $userData, "1");
+                $this->updateUserLoginStatus( $userData, Constant::LOGIN_STATUS_START );
             }
 
         } else {
@@ -206,9 +210,11 @@ class LogintimesTable extends Table
             //今現在ログインをしていなくて前回処理時にログインがある→ログイン終了をする
             $hasLoginData = $this->hasLogin( $userData['character_id']);
             if( $hasLoginData !== false ) {
-                $this->updateUserLoginStatus( $hasLoginData, "2");
+                $this->updateUserLoginStatus( $hasLoginData, Constant::LOGIN_STATUS_FINISH );
             }
         }
+
+
     }
 
     /**
@@ -218,14 +224,35 @@ class LogintimesTable extends Table
      * @return boolean true(ログイン中) / false (ログインしていない)
      */
     private function hasLogin( $character_id = null ) {
-        $hasLoginData = $this->find ( 'first', [
-                'conditions' => [
-                        'character_id' => $character_id,
-                        'login_status' => 1
-                ]
-        ] );
-        return ( count($hasLoginData) > 0 ) ? $hasLoginData["Logintime"] : false;
+
+        $hasLoginData = $this->find ()
+                        ->select()
+                        ->where(['ladies_id' => $character_id])
+                        ->where(['login_status' => Constant::LOGIN_STATUS_START])
+                        ->hydrate(false)
+                        ->toList();
+
+        return ( count($hasLoginData) > 0 ) ? $hasLoginData[0] : false;
     }
+
+
+    /**
+     * すでにログインしているチャットレディのidをハッシュで格納する
+     *
+     * @return ladies_idのハッシュ
+     */
+    private function getLoginedLadiesHash(){
+
+        $logintimes = TableRegistry::get('Logintimes');
+
+        $loginLadiesHashArr = $logintimes->find()
+        ->select(['ladies_id'])
+        ->where(['login_status' => Constant::LOGIN_STATUS_START])
+        ->hydrate(false)
+        ->toList();
+
+    }
+
 
 
     /**
@@ -246,28 +273,33 @@ class LogintimesTable extends Table
             return false;
         }
 
+        $logintimes       = TableRegistry::get('Logintimes');
+
         switch( $status ){
-            case '1':
+            case Constant::LOGIN_STATUS_START:
                 //新規ログイン記録
                 //userDataはUserから取得したデータ
-                $data['character_id'] = $userData['character_id'];
+                $data['ladies_id']        = $userData['character_id'];
                 $data['login_start_time'] = date('Y-m-d H:i:s');
-                $data['login_status'] = 1;
-                $data['working_status'] = $userData['working_status'];
+                $data['login_status']     = Constant::LOGIN_STATUS_START;
+                $data['working_status']   = $userData['working_status'];
+                $data['is_delete'] = false;
+                $loginEntitity     = $logintimes->newEntity( $data );
+
                 break;
-            case '2':
+            case Constant::LOGIN_STATUS_FINISH:
                 //ログイン終了
                 //userDataはログイン中のLogintimeのデータ
-                $data['id'] = $userData['id'];
-                $data['login_end_time'] = date('Y-m-d H:i:s');
-                $data['login_status'] = 2;
+                $loginEntitity = $logintimes->get($userData['id']);
+                $loginEntitity ->login_end_time = date('Y-m-d H:i:s');
+                $loginEntitity ->login_status   =  Constant::LOGIN_STATUS_FINISH;
                 break;
+
             default:
                 break;
         }
 
-        $this->create();
-        $this->save( $data);
+        $logintimes->save( $loginEntitity  );
         return true;
     }
 

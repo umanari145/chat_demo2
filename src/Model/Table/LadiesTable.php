@@ -10,6 +10,7 @@ use Cake\Log\Log;
 use Cake\Collection\Collection;
 use App\Util\Constant;
 
+require_once ROOT .'/src/Util/DOMEvent.php';
 
 /**
  * Ladies Model
@@ -70,6 +71,9 @@ class LadiesTable extends Table
             ->allowEmpty('url');
 
         $validator
+            ->allowEmpty('prof');
+
+        $validator
             ->boolean('is_delete')
             ->requirePresence('is_delete', 'create')
             ->notEmpty('is_delete');
@@ -77,21 +81,6 @@ class LadiesTable extends Table
         return $validator;
     }
 
-    /**
-     * スクレイピングの起動
-     *
-     * 1 girlId => 'ステータス状態'のハッシュを取得
-     * 2 girlIdが存在しているか否かの確認し、存在していない場合、登録
-     */
-    public function action()
-    {
-        $totalGirlHash = $this->getParsedHTMLContents(Constant::DMM_URL);
-
-        $totalGirlIdList = array_keys( $totalGirlHash );
-
-        $this->isExistGirlAndRegist( $totalGirlIdList );
-
-    }
 
     /**
      * メインのコントローラー(ここで処理を行う)
@@ -99,7 +88,7 @@ class LadiesTable extends Table
      * @param スクレイピング対象のURL
      * @return 女性のidのハッシュ
      */
-    private function getParsedHTMLContents( $url = "" )
+    public function getParsedHTMLContents( $url = "" )
     {
 
         if ( empty ( $url )) return false;
@@ -107,24 +96,19 @@ class LadiesTable extends Table
         $html = file_get_contents ( $url );
 
         if (! empty ( $html )) {
-
-            $dom = \DomDocument::loadHTML ( $html );
-            $xml = simplexml_import_dom ( $dom );
+           $dom = \phpQuery::newDocument($html);
             //女子データを稼働状況ごとに取得する
             $workingStatueArr =['waiting','party','twoshot'];
-            $totalGirlHash;
+            $totalLadyHash;
             foreach ( $workingStatueArr as $workingStatus ) {
-                $selector = 'anchor_' . $workingStatus;
-                $waitingList = $xml->xpath ( '//div[@id="' . $selector . '"]/ul/li' );
-                $girlsListafterExtract = $this->getGirlIdList( $waitingList );
-
-                $collection = new Collection($girlsListafterExtract);
-                $girlsList = $collection->extract('id')->toArray();
-                $totalGirlHash[$workingStatus] = $girlsList;
+                $selector     = 'anchor_' . $workingStatus;
+                $waitingList  = $dom["#".$selector]->find("ul li.listbox");
+                $ladiesIdList = $this->getLadyIdList( $waitingList );
+                $totalLadyHash[$workingStatus] = $ladiesIdList;
             }
             //最終的にid=>working_statusの状態にする
-            $girlIdHashFinal = $this->convertGrilIdData( $totalGirlHash );
-            return $girlIdHashFinal;
+            $ladyIdHashFinal = $this->convertGrilIdData( $totalLadyHash );
+            return $ladyIdHashFinal;
 
         } else {
             return false;
@@ -133,70 +117,66 @@ class LadiesTable extends Table
     }
 
     /**
-     * チャットガールガールがすでに登録されているかの確認
+     * チャットレディレディがすでに登録されているかの確認
      * 登録されていなければ登録する
      *
-     * @param unknown $totalGirlIdHash
+     * @param unknown $totalLadyIdHash
      */
-    private function isExistGirlAndRegist( $totalGirlIdList )
+    public function isExistLadyAndRegist( $totalLadyIdList )
     {
-        $chatgirlIdHash = $this->getRegistredChatGirlId();
-        $chatgirlHashArr;
+        $chatladyIdHash = $this->getRegistredChatLadyId();
+        $chatladyHashArr;
         $count = 0;
-        foreach ( $totalGirlIdList as $girlId ) {
-            if( isset( $chatgirlIdHash[$girlId]) !== true ) {
+        foreach ( $totalLadyIdList as $ladyId ) {
+            if( isset( $chatladyIdHash[$ladyId]) !== true ) {
                 //idの登録なし
-                $chatgirlHashArr[] =$this->getChatGirlHashArr( $girlId );
+                $chatladyHashArr[] =$this->getChatLadyHashArr( $ladyId );
                 $count++;
 
                 //if( $count === 10 ) break;
             }
         }
-        $this->saveChatLadyEntity( $chatgirlHashArr);
+        $this->saveChatLadyEntity( $chatladyHashArr);
 
     }
 
     /**
      * チャットレディの登録
      *
-     * @param unknown $girlId チャットレディID
+     * @param unknown $ladyId チャットレディID
      */
-    private function getChatGirlHashArr( $girlId )
+    private function getChatLadyHashArr( $ladyId )
     {
-
-        $detailUrl = $this->getChatGirlDetailPageUrl( $girlId );
+        $detailUrl = $this->getChatLadyDetailPageUrl( $ladyId );
         $html      = file_get_contents ( $detailUrl );
 
         if (! empty ( $html )) {
-            $dom  = \DomDocument::loadHTML ( $html );
-            $xml  = simplexml_import_dom ( $dom );
-            return $this->getGirlsProperty( $xml, $girlId );
+            $dom = \phpQuery::newDocument($html);
+            return $this->getLadiesProperty( $dom, $ladyId );
         }
     }
 
     /**
      * 必要な情報の取得
      *
-     * @param unknown $xml xmlデータ
-     * @param string $girlId チャットガールID
+     * @param unknown $dom domデータ
+     * @param string $ladyId チャットレディID
      */
-    private function getGirlsProperty( $xml, $girlId )
+    private function getLadiesProperty( $dom, $ladyId )
     {
-
-        $nameEle = $xml->xpath ( '//div[contains(@class,"char-name")]/p[@class="name"]' );
-        $girlName =( !empty( $this->getPropertyFromElement( $nameEle ))) ? $this->getPropertyFromElement( $nameEle ) :"";
-        $imageUrl =( !empty( $this->getGirlImageURL( $girlId ))) ? $this->getGirlImageURL( $girlId ) : "";
-
-
+        $name     =  $dom['div.l-box p.name']->text();
+        $imageUrl = ( !empty( $ladyId  )) ? $this->getLadyImageURL( $ladyId ) : "";
+        $profile  = $dom['p.data-comment']->html();
 
         $data =[
-                'code'      => $girlId,
-                'name'      => $girlName,
+                'code'      => $ladyId,
+                'name'      => $name,
                 'image_url' => $imageUrl,
-                'url'       => $this->getChatGirlDetailPageUrl( $girlId )
+                'url'       => $this->getChatLadyDetailPageUrl( $ladyId ),
+                'profile'   => $profile
         ];
 
-        Log::write('debug', 'code ' . $girlId , ' ladyname ' . $girlName );
+        Log::write('debug', 'code ' . $ladyId , ' ladyname ' . $name );
 
         return $data;
     }
@@ -209,8 +189,13 @@ class LadiesTable extends Table
      */
     private function saveChatLadyEntity( $records )
     {
-        foreach ( $records as &$record )
+        foreach ( $records as $key => &$record )
         {
+            if( empty($record['code']) || empty( $record['name']) )
+            {
+                unset($records[$key]);
+            }
+
             $record['is_delete'] = false;
         }
 
@@ -221,24 +206,24 @@ class LadiesTable extends Table
 
 
     /**
-     * チャットガールの詳細ページURLの取得
+     * チャットレディの詳細ページURLの取得
      *
-     * @param unknown $girId チャットガールID
+     * @param unknown $girId チャットレディID
      */
-    private function getChatGirlDetailPageUrl( $girId )
+    private function getChatLadyDetailPageUrl( $girId )
     {
         return Constant::DMM_URL ."-/chat-room/=/character_id=". $girId . "/";
     }
 
 
     /**
-     * チャットガールの画像URLを取得
+     * チャットレディの画像URLを取得
      *
-     * @param unknown $girlId チャットガールID
+     * @param unknown $ladyId チャットレディID
      */
-    private function getGirlImageURL( $girlId )
+    private function getLadyImageURL( $ladyId )
     {
-        return Constant::CHAT_GIRL_IMG_URL . sprintf('%08d', $girlId ) ."/profile_l.jpg";
+        return Constant::CHAT_GIRL_IMG_URL . sprintf('%08d', $ladyId ) ."/profile_l.jpg";
     }
 
 
@@ -247,10 +232,10 @@ class LadiesTable extends Table
      * チャットレディのidのハッシュを作る
      * 登録されていなければ登録する
      *
-     * @return チャットガールのidのハッシュ
+     * @return チャットレディのidのハッシュ
      *
      **/
-    private function getRegistredChatGirlId()
+    public function getRegistredChatLadyId()
     {
         $ladies = TableRegistry::get('Ladies');
 
@@ -259,302 +244,50 @@ class LadiesTable extends Table
                         ->hydrate(false)
                         ->toList();
 
-        $chatgirlIdHash = [];
+        $chatladyIdHash = [];
         foreach ( $codeHashArr as $codeHash )
         {
-            $chatgirlIdHash[$codeHash['code']] = 1;
+            $chatladyIdHash[$codeHash['code']] = 1;
         }
-        return $chatgirlIdHash;
+        return $chatladyIdHash;
     }
 
     /**
      * 女性リストの取得
      *
-     * @param unknown $girlsList 女性のデータが入ったDOMデータ
-     * @return multitype:id/classを格納した女性のリスト
+     * @param unknown $ladiesList 女性のデータが入ったDOMデータ
+     * @return character_idを格納した女性のリスト
      */
-    private function getGirlIdList( $girlsList =[] ) {
-        $girlsListafterExtract=[];
+    private function getLadyIdList( $ladiesList =[] ) {
+        $ladiesListafterExtract=[];
 
-        foreach ( $girlsList as $girlEle) {
+        foreach ( $ladiesList as $ladyEle) {
+            $href = pq($ladyEle)->find('a')->attr('href');
+            if( empty($href)) continue;
 
-            $idElement = $girlEle->attributes();
-            $girlData =  $this->getPropertyFromElementFromAllGirlList( $idElement );
-            if( $girlData !== false) {
-                $girlsListafterExtract[] = $girlData;
-            }
+            preg_match_all( '/^.*id=(\d+)\/$/', $href ,$res);
+
+            if( empty($res[1][0]) ) continue;
+
+            $ladiesListafterExtract[] = $res[1][0];
         }
-        return $girlsListafterExtract;
-    }
-
-    /**
-     * XML要素からプロパティを取得する
-     *
-     * @param $idElement DOM要素
-     * @return id/classを格納したクラス / false(取得失敗)
-     */
-    private function getPropertyFromElement( $idElement = [] ) {
-
-        foreach ( $idElement as $attr => $property ) {
-            if( !empty( $property ) ) {
-                return $property;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * XML要素からプロパティを取得する
-     *
-     * @param $idElement DOM要素
-     * @return id/classを格納したクラス / false(取得失敗)
-     */
-    private function getPropertyFromElementFromAllGirlList( $idElement =[]) {
-
-        $girlData =[];
-        foreach ( $idElement as $attr => $property ) {
-            if( empty( $property )) next;
-
-            switch( $attr ) {
-                case 'id':
-                    $tmp = explode("_", $property );
-                    if( preg_match('/^\d*$/', $tmp[1]) === 1 ){
-                        $id = $tmp[1];
-                    }
-                    if ( !empty( $id)) $girlData['id'] = $id;
-                    break;
-            }
-        }
-
-        if( !empty( $girlData['id'])) {
-            return $girlData;
-        } else {
-            return false;
-        }
+        return $ladiesListafterExtract;
     }
 
     /**
      * workingstatus=>idListから id =>workingstatusの状態に変更をする
      *
-     * @param unknown $totalGirlHash workingstatus=>idList
+     * @param unknown $totalLadyHash workingstatus=>idList
      * @return id =>workingstatusのハッシュ
      */
-    private function convertGrilIdData( $totalGirlHash =[]) {
-        $girlIdHashFinal;
-        foreach( $totalGirlHash as $workingStatus => $girlList ) {
-            foreach ( $girlList as $girlId){
-                $girlIdHashFinal[$girlId] = $workingStatus;
+    private function convertGrilIdData( $totalLadyHash =[]) {
+        $ladyIdHashFinal;
+        foreach( $totalLadyHash as $workingStatus => $ladyList ) {
+            foreach ( $ladyList as $ladyId){
+                $ladyIdHashFinal[$ladyId] = $workingStatus;
             }
         }
-        return $girlIdHashFinal;
+        return $ladyIdHashFinal;
     }
 
-    /**
-     * ログイン状態と非ログイン状態のスタッフを分ける
-     *
-     * @param unknown $girlIdHashFinal ログインユーザーのcharacter_id
-     * @param unknown $allCharacterIdList character_idのデータ
-     * @return ログイン/非ログインごとのユーザーのデータ
-     */
-    private function getLoginStaffUserList( $girlIdHashFinal, $allCharacterIdList ) {
-
-        $UserList =[
-                'login'    => [],
-                'not_login'    =>[]
-        ];
-
-        foreach ( $allCharacterIdList as $characterId ) {
-
-            if( isset($girlIdHashFinal[$characterId]) === true ) {
-                #ログインしているユーザー
-                $UserList['login'][] = [
-                'character_id'   => $characterId,
-                'working_status' => $this->getWorkingStatusNum( $girlIdHashFinal[$characterId])
-                ];
-            } else {
-                #ログインしていないユーザー
-                $UserList['not_login'][] = [
-                'character_id'   => $characterId
-                ];
-            }
-        }
-        return $UserList;
-    }
-
-    /**
-     * ログイン時の状態を文字列から数字で返す
-     *
-     * @param string $working_status_str 文字列waiting(1),party(2),twoshot(3)
-     * @return number 数値
-     */
-    private function getWorkingStatusNum( $working_status_str ="") {
-
-        $working_status_num;
-        switch( $working_status_str){
-            case 'waiting':
-                $working_status_num = 1;
-                break;
-            case 'party':
-                $working_status_num = 2;
-                break;
-            case 'twoshot':
-                $working_status_num = 3;
-                break;
-            default:
-                break;
-        }
-        return $working_status_num;
-    }
-
-    /**
-     * ログインデータを記録する
-     *
-     * @param unknown $userList ログイン者と非ログイン者のデータ
-     */
-    private function registLoginStaffData( $userList =[]){
-
-        foreach ( $userList['login'] as $userData ) {
-            $this->divLoginStatus( $userData ,true );
-        }
-
-        foreach ( $userList['not_login'] as $userData2 ) {
-            $this->divLoginStatus( $userData2 ,false );
-        }
-        $sqlLog = $this->getDataSource()->getLog(false, false);
-        debug($sqlLog , false);
-
-    }
-
-    /**
-     * ログインステータスの判定とデータの更新
-     *
-     * @param unknown $userData ユーザーデータ(user_idの入ったデータ)
-     * @param string $isLogin true(ログイン中)/false(ログインしていない)
-     */
-    private function divLoginStatus($userData = [], $isLogin = true) {
-
-        if ($isLogin === true) {
-            //ログインユーザー
-            //今現在ログインをしていて
-            $hasLoginData = $this->hasLogin( $userData['character_id']);
-
-            if( $hasLoginData !== false ) {
-                //ステータス変更あり
-                if( $hasLoginData['working_status'] != $userData['working_status'] ) {
-                    //以前のステータス情報を閉じる
-                    $this->updateUserLoginStatus( $hasLoginData, "2");
-                    //新規の記録の場合は何もしない
-                    $this->updateUserLoginStatus( $userData, "1");
-                }
-                //ステータス変更ない場合は何もしない
-
-            } else {
-                //ログイン記録がない場合は新規の記録
-                $this->updateUserLoginStatus( $userData, "1");
-            }
-
-        } else {
-            //非ログインユーザー
-            //今現在ログインをしていなくて前回処理時にログインがある→ログイン終了をする
-            $hasLoginData = $this->hasLogin( $userData['character_id']);
-            if( $hasLoginData !== false ) {
-                $this->updateUserLoginStatus( $hasLoginData, "2");
-            }
-        }
-    }
-
-    /**
-     * ログイン中か否か
-     *
-     * @param string $character_id キャラクターID
-     * @return boolean true(ログイン中) / false (ログインしていない)
-     */
-    private function hasLogin( $character_id = null ) {
-        $hasLoginData = $this->find ( 'first', [
-                'conditions' => [
-                        'character_id' => $character_id,
-                        'login_status' => 1
-                ]
-        ] );
-        return ( count($hasLoginData) > 0 ) ? $hasLoginData["Logintime"] : false;
-    }
-
-
-    /**
-     * ログインステータスを更新する(新規ログインの開始/既存ログインの終了)
-     *
-     * @param string $userData (新規ログイン開始時はcharacter_d / 既存ログイン終了時はLogintimeのid)
-     * @param string $status 1=ログイン開始 2=ログイン終了
-     * @return true(成功) / false (失敗)
-     */
-    private function updateUserLoginStatus( $userData = null, $status ="" ) {
-        $data = [
-                'login_status'     => $status
-        ];
-
-        if( empty($status) ) return false;
-
-        if( empty( $userData['character_id']) && empty($userData['id']) ) {
-            return false;
-        }
-
-        switch( $status ){
-            case '1':
-                //新規ログイン記録
-                //userDataはUserから取得したデータ
-                $data['character_id'] = $userData['character_id'];
-                $data['login_start_time'] = date('Y-m-d H:i:s');
-                $data['login_status'] = 1;
-                $data['working_status'] = $userData['working_status'];
-                break;
-            case '2':
-                //ログイン終了
-                //userDataはログイン中のLogintimeのデータ
-                $data['id'] = $userData['id'];
-                $data['login_end_time'] = date('Y-m-d H:i:s');
-                $data['login_status'] = 2;
-                break;
-            default:
-                break;
-        }
-
-        $this->create();
-        $this->save( $data);
-        return true;
-    }
-
-    /**
-     * ある対象期間(yyyy/MM)のログイン時間を取得する
-     *
-     * @param string $targetId 対象者id
-     * @param string $targetMonthVal 対象期間(yyyy/MM)
-     * @return int ログイン時間(秒)
-     */
-    private function getLoginSumTimeByTargetMonth( $targetId="" ,$targetMonthVal="") {
-
-        if( empty( $targetId) ) return false;
-
-        $dateUtility = new DateUtility();
-        list( $startTime, $endTime ) = $dateUtility->getMonthStartAndEnd( $targetMonth );
-
-        $conditions =[
-                'fields' =>[
-                        'SUM(UNIX_TIMESTAMP(Logintime.login_end_time)-UNIX_TIMESTAMP(Logintime.login_start_time)) as login_sum_time',
-                ],
-                'conditions' =>[
-                        'Logintime.character_id' => $targetId,
-                        'Logintime.login_status' => 2,
-                        'Logintime.login_end_time >= ' => $startTime,
-                        'Logintime.login_end_time <= ' => $endTime
-                ],
-        ];
-
-        $loginData = $this->find('first', $conditions );
-
-        if (!empty( $loginData[0]['login_sum_time'] ) ) {
-            return $loginData[0]['login_sum_time'];
-        } else {
-            return false;
-        }
-    }
 }

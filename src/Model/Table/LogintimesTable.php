@@ -198,9 +198,7 @@ class LogintimesTable extends Table
                     $this->updateUserLoginStatus( $userData, Constant::LOGIN_STATUS_START );
                 }
                 //ステータス変更ない場合は何もしない
-
             } else {
-
                 //ログイン記録がない場合は新規の記録
                 $this->updateUserLoginStatus( $userData, Constant::LOGIN_STATUS_START );
             }
@@ -213,7 +211,6 @@ class LogintimesTable extends Table
                 $this->updateUserLoginStatus( $hasLoginData, Constant::LOGIN_STATUS_FINISH );
             }
         }
-
 
     }
 

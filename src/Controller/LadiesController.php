@@ -18,9 +18,10 @@ class LadiesController extends AppController
      */
     public function index()
     {
-        $query  = $this->getQuery( $this->request->query );
+        list( $query, $searchWord) = $this->getQuery( $this->request->query );
         $ladies = $this->paginate($query);
 
+        $this->set('searchWord' , $searchWord );
         $this->set(compact('ladies'));
         $this->set('_serialize', ['ladies']);
     }
@@ -115,7 +116,7 @@ class LadiesController extends AppController
      *
      * @param unknown $query
      *            クエリオブジェクト
-     * @return query クエリオブジェクト
+     * @return query クエリオブジェクト / searchWord 検索語句
      */
     private function getQuery($query) {
         $searchWord = (! empty ( $query ['keyword'] )) ? $query ['keyword'] : "";
@@ -142,7 +143,7 @@ class LadiesController extends AppController
             $query = $this->Ladies->find ( 'all' );
         }
 
-        return $query;
+        return [$query,$searchWord];
     }
 
 }

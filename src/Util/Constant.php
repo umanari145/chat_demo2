@@ -40,4 +40,19 @@ class Constant {
      */
     const LOGIN_STATUS_FINISH  = "2";
 
+    /**
+     * ノンアダルト
+     */
+    const NONE_ADULT_AREA  = "1";
+
+    /**
+     * アダルト
+     */
+    const ADULT_AREA  = "2";
+
+    /**
+     * 人妻
+     */
+    const MADAM_AREA  = "3";
+
 }

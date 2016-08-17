@@ -164,13 +164,15 @@ class LadiesTable extends Table
      */
     private function getLadiesProperty( $dom, $ladyId )
     {
-        $name     =  $dom['div.l-box p.name']->text();
-        $imageUrl = ( !empty( $ladyId  )) ? $this->getLadyImageURL( $ladyId ) : "";
-        $profile  = $dom['p.data-comment']->html();
+        $name        =  $dom['div.l-box p.name']->text();
+        $imageUrl    = ( !empty( $ladyId  )) ? $this->getLadyImageURL( $ladyId ) : "";
+        $profile     = $dom['p.data-comment']->html();
+        $category_id = $this->getChatLadyCategory( $dom );
 
         $data =[
                 'code'      => $ladyId,
                 'name'      => $name,
+                'category'  => $category_id,
                 'image_url' => $imageUrl,
                 'url'       => $this->getChatLadyDetailPageUrl( $ladyId ),
                 'profile'   => $profile
@@ -179,6 +181,26 @@ class LadiesTable extends Table
         Log::write('debug', 'code ' . $ladyId , ' ladyname ' . $name );
 
         return $data;
+    }
+
+    /**
+     *
+     * @param unknown $dom チャットレディ詳細画面のdom情報
+     * @return カテゴリーid
+     */
+    private function getChatLadyCategory( $dom )
+    {
+        $categoryStr = $dom['p.tx-floor']->text();
+
+        $category_id;
+        if( !empty($categoryStr) ){
+            switch ( $categoryStr){
+                case 'ノンアダルトフロア': $category_id = Constant::NONE_ADULT_AREA; break;
+                case 'アダルトフロア':     $category_id = Constant::ADULT_AREA; break;
+                case '人妻フロア':         $category_id = Constant::MADAM_AREA; break;
+            }
+        }
+        return $category_id;
     }
 
 

@@ -5,16 +5,28 @@
 
     <div class="small-offset-3 large-6 medium-6">
         <div class="view_name">
-            <td><?= h($lady->name) ?></td>
+            <span><?= h($lady->name) ?></span>
         </div>
+
+
         <?php echo $this->Html->image( $lady->image_url, [
                    'class' => 'view_img',
                    'alt'   => $lady->name
                   ]);
         ?>
 
+        <div class="category">
+            <?php
+               if( !empty($lady->category) ) echo h($dmm_category_list[$lady->category]);
+            ?>
+        </div>
+
+        <div class="profile">
+            <?= $lady->profile ?>
+        </div>
+
         <div class="to_supplier" >
-         <?php echo $this->Html->link( "この子とチャットする" , $lady->url ,['target' =>'_blank']);
+         <?php echo $this->Html->link( "この子とチャットする" , $lady->url ,['target' =>'_blank','class'=>'button to_dmm_button']);
          ?>
         </div>
 

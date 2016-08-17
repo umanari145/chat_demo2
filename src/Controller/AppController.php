@@ -45,6 +45,12 @@ class AppController extends Controller
         $this->loadComponent('Flash');
     }
 
+    public function beforeFilter(Event $event)
+    {
+        $config_arr       = parse_ini_file( USER_CONFIG_FILE_PATH ,true);
+        $this->config_arr = $config_arr;
+    }
+
     /**
      * Before render callback.
      *
@@ -58,5 +64,7 @@ class AppController extends Controller
         ) {
             $this->set('_serialize', true);
         }
+
+        $this->set( 'dmm_category_list' , $this->config_arr['dmm_category_list']);
     }
 }

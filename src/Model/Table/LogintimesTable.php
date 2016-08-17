@@ -9,6 +9,7 @@ use Cake\Validation\Validator;
 use App\Util\Constant;
 use Cake\Collection\Collection;
 
+
 /**
  * Logintimes Model
  *
@@ -162,17 +163,17 @@ class LogintimesTable extends Table
      */
     public function registLoginStaffData( $userList =[]){
 
-        //$loginLadiesHashArr = $this->getLoginedLadiesHash();
+        $loginLadiesHash = $this->getPreLoginedLadiesHash();
+        $loginDataArr =[];
 
         foreach ( $userList['login'] as $userData ) {
-            $this->divLoginStatus( $userData ,true );
+            $this->divLoginStatus( $userData ,true, $loginLadiesHash, $loginDataArr );
         }
-
 
         foreach ( $userList['not_login'] as $userData2 ) {
-            $this->divLoginStatus( $userData2 ,false );
+            $this->divLoginStatus( $userData2 ,false, $loginLadiesHash, $loginDataArr );
         }
-
+        $this->saveLoginEntity( $loginDataArr );
     }
 
     /**
@@ -180,74 +181,67 @@ class LogintimesTable extends Table
      *
      * @param unknown $userData ユーザーデータ(user_idの入ったデータ)
      * @param string $isLogin true(ログイン中)/false(ログインしていない)
-     * @param $loginLadiesHashArr すでにログインしているチャットレディのハッシュid
+     * @param hash $loginLadiesHash すでにログインしているチャットレディのハッシュ[character_idがkey]
+     * @param arrray $loginDataArr エンティティの配列
      */
-    private function divLoginStatus($userData = [], $isLogin = true /**$loginLadiesHashArr**/ ) {
+    private function divLoginStatus( $userData = [], $isLogin = true , $loginLadiesHash, &$loginDataArr ) {
 
         if ($isLogin === true) {
             //ログインユーザー
             //今現在ログインをしていて
-            $hasLoginData = $this->hasLogin( $userData['character_id']);
+            $hasLoginData = ( !empty( $loginLadiesHash[$userData['character_id']] ) ) ? $loginLadiesHash[$userData['character_id']] :false;
 
             if( $hasLoginData !== false ) {
                 //ステータス変更あり
                 if( $hasLoginData['working_status'] != $userData['working_status'] ) {
                     //以前のステータス情報を閉じる
-                    $this->updateUserLoginStatus( $hasLoginData, Constant::LOGIN_STATUS_FINISH );
-                    //新規の記録の場合は何もしない
-                    $this->updateUserLoginStatus( $userData, Constant::LOGIN_STATUS_START );
+                    $loginDataArr[] = $this->updateUserLoginStatus( $hasLoginData, Constant::LOGIN_STATUS_FINISH );
+                    //新規の記録(正確には新規ステータス)のスタート
+                    $loginDataArr[] = $this->updateUserLoginStatus( $userData, Constant::LOGIN_STATUS_START );
                 }
                 //ステータス変更ない場合は何もしない
             } else {
                 //ログイン記録がない場合は新規の記録
-                $this->updateUserLoginStatus( $userData, Constant::LOGIN_STATUS_START );
+                $loginDataArr[] = $this->updateUserLoginStatus( $userData, Constant::LOGIN_STATUS_START );
             }
 
         } else {
             //非ログインユーザー
             //今現在ログインをしていなくて前回処理時にログインがある→ログイン終了をする
-            $hasLoginData = $this->hasLogin( $userData['character_id']);
+            $hasLoginData = ( !empty( $loginLadiesHash[$userData['character_id']] ) ) ? $loginLadiesHash[$userData['character_id']] :false;
+
             if( $hasLoginData !== false ) {
-                $this->updateUserLoginStatus( $hasLoginData, Constant::LOGIN_STATUS_FINISH );
+                $loginDataArr[] = $this->updateUserLoginStatus( $hasLoginData, Constant::LOGIN_STATUS_FINISH );
             }
         }
 
     }
 
     /**
-     * ログイン中か否か
+     * 前回ログインしているチャットレディのidをハッシュで格納する
      *
-     * @param string $character_id キャラクターID
-     * @return boolean true(ログイン中) / false (ログインしていない)
+     * @return hash ladies_id => logintimesのid のハッシュ
      */
-    private function hasLogin( $character_id = null ) {
-
-        $hasLoginData = $this->find ()
-                        ->select()
-                        ->where(['ladies_id' => $character_id])
-                        ->where(['login_status' => Constant::LOGIN_STATUS_START])
-                        ->hydrate(false)
-                        ->toList();
-
-        return ( count($hasLoginData) > 0 ) ? $hasLoginData[0] : false;
-    }
-
-
-    /**
-     * すでにログインしているチャットレディのidをハッシュで格納する
-     *
-     * @return ladies_idのハッシュ
-     */
-    private function getLoginedLadiesHash(){
+    private function getPreLoginedLadiesHash(){
 
         $logintimes = TableRegistry::get('Logintimes');
 
         $loginLadiesHashArr = $logintimes->find()
-        ->select(['ladies_id'])
+        ->select(['id','ladies_id','working_status'])
         ->where(['login_status' => Constant::LOGIN_STATUS_START])
+        ->where(['is_delete'    => false ])
         ->hydrate(false)
         ->toList();
 
+        $loginLadiesHash;
+        foreach ( $loginLadiesHashArr as $hash) {
+            $loginLadiesHash[$hash['ladies_id']] = [
+                 'id'             => $hash['id'],
+                 'working_status' => $hash['working_status']
+            ];
+        }
+
+        return $loginLadiesHash;
     }
 
 
@@ -255,50 +249,90 @@ class LogintimesTable extends Table
     /**
      * ログインステータスを更新する(新規ログインの開始/既存ログインの終了)
      *
-     * @param string $userData (新規ログイン開始時はcharacter_d / 既存ログイン終了時はLogintimeのid)
+     * @param string $record (新規ログイン開始時はcharacter_d / 既存ログイン終了時はLogintimeのid)
      * @param string $status 1=ログイン開始 2=ログイン終了
      * @return true(成功) / false (失敗)
      */
-    private function updateUserLoginStatus( $userData = null, $status ="" ) {
-        $data = [
-                'login_status'     => $status
-        ];
+    private function updateUserLoginStatus( $record = null, $status ="" ) {
 
         if( empty($status) ) return false;
 
-        if( empty( $userData['character_id']) && empty($userData['id']) ) {
+        if( empty( $record['character_id']) && empty($record['id']) ) {
             return false;
         }
 
-        $logintimes       = TableRegistry::get('Logintimes');
-
+        $loginData;
         switch( $status ){
             case Constant::LOGIN_STATUS_START:
                 //新規ログイン記録
-                //userDataはUserから取得したデータ
-                $data['ladies_id']        = $userData['character_id'];
-                $data['login_start_time'] = date('Y-m-d H:i:s');
-                $data['login_status']     = Constant::LOGIN_STATUS_START;
-                $data['working_status']   = $userData['working_status'];
-                $data['is_delete'] = false;
-                $loginEntitity     = $logintimes->newEntity( $data );
-
-                break;
+                //recordはUserから取得したデータ
+                $loginData['ladies_id']        = $record['character_id'];
+                $loginData['login_start_time'] = date('Y-m-d H:i:s');
+                $loginData['login_status']     = Constant::LOGIN_STATUS_START;
+                $loginData['working_status']   = $record['working_status'];
+                $loginData['is_delete'] = false;
+                 break;
             case Constant::LOGIN_STATUS_FINISH:
                 //ログイン終了
-                //userDataはログイン中のLogintimeのデータ
-                $loginEntitity = $logintimes->get($userData['id']);
-                $loginEntitity ->login_end_time = date('Y-m-d H:i:s');
-                $loginEntitity ->login_status   =  Constant::LOGIN_STATUS_FINISH;
+                //recordはログイン中のLogintimeのデータ
+                $loginData['id']             = $record['id'];
                 break;
-
             default:
                 break;
         }
-
-        $logintimes->save( $loginEntitity  );
-        return true;
+        return $loginData;
     }
 
+    /**
+     * 一括でログイン記録を更新(新規・既存含む)
+     * @param unknown $loginDataArr ログインのエンティティ
+     */
+    private function saveLoginEntity( $loginDataArr )
+    {
+        $insertDataArr   = [];
+        $updateDataIdArr = [];
 
+        foreach ( $loginDataArr as $loginData ){
+
+            if( isset($loginData['id']) === true ){
+                //更新処理
+                $updateDataIdArr[] = $loginData['id'];
+            } else {
+                //新規データ
+                $insertDataArr[] = $loginData;
+            }
+        }
+        $this->bulkInsert( $insertDataArr);
+        $this->bulkUpdate( $updateDataIdArr );
+    }
+
+    /**
+     * ログイン記録を一括で入力
+     *
+     * @param unknown $insertDataArr 新規ログインデータ
+     *
+     */
+    private function bulkInsert( $insertDataArr )
+    {
+        $logintimes       = TableRegistry::get('Logintimes');
+        $logintimesEntities = $logintimes->newEntities( $insertDataArr );
+        $logintimes ->saveMany( $logintimesEntities );
+    }
+
+    /**
+     * ログイン記録を一括で終了
+     *
+     * @param unknown $updateDataIdArr loginテーブルのidの配列
+     */
+    private function bulkUpdate( $updateDataIdArr )
+    {
+        $this->query()
+        ->update()
+        ->set([
+            'login_end_time' => date('Y-m-d H:i:s'),
+            'login_status'   => Constant::LOGIN_STATUS_FINISH
+        ])
+        ->where(['id in' => $updateDataIdArr])
+        ->execute();
+    }
 }

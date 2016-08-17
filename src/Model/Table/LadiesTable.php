@@ -136,8 +136,10 @@ class LadiesTable extends Table
                 //if( $count === 10 ) break;
             }
         }
-        $this->saveChatLadyEntity( $chatladyHashArr);
 
+        if( !empty($chatladyHashArr)){
+            $this->saveChatLadyEntity( $chatladyHashArr);
+        }
     }
 
     /**

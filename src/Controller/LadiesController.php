@@ -35,11 +35,21 @@ class LadiesController extends AppController
      */
     public function view($id = null)
     {
+
+
         $lady = $this->Ladies->get($id, [
             'contain' => []
         ]);
 
+        $this->loadModel('Comments');
+
+        $query['ladies_id'] = $id;
+
+        $comments = $this->Comments->getComments( $query );
+
         $this->set('lady', $lady);
+        $this->set('comments', $comments);
+        $this->set('_serialize', ['comments']);
         $this->set('_serialize', ['lady']);
     }
 

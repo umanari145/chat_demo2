@@ -44,9 +44,6 @@ class LogintimesTable extends Table
 
         $this->addBehavior('Timestamp');
 
-//        $this->belongsTo('Ladies', [
-//            'foreignKey' => 'ladies_id'
-//        ]);
     }
 
     /**
@@ -94,8 +91,6 @@ class LogintimesTable extends Table
      */
     public function buildRules(RulesChecker $rules)
     {
-        //$rules->add($rules->existsIn(['ladies_id'], 'Ladies'));
-
         return $rules;
     }
 

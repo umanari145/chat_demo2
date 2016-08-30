@@ -29,13 +29,13 @@ class SaveChatLadyShell extends Shell
 
         $this->Ladies->isExistLadyAndRegist( $totalLadyIdList );
 
-        $chatLadyIdList  = $this->Ladies->find('all')->select(['code'])->where(['is_delete' => false ])->hydrate(false)->toList();
-        $collection      = new Collection($chatLadyIdList);
-        $chatLadyIdList  = $collection->extract('code')->toArray();
-
-        $userList       = $this->Logintimes->getLoginUserList( $totalLadyHash, $chatLadyIdList);
-
-        $this->Logintimes->registLoginStaffData( $userList );
+       // $chatLadyIdList  = $this->Ladies->find('all')->select(['code'])->where(['is_delete' => false ])->hydrate(false)->toList();
+       // $collection      = new Collection($chatLadyIdList);
+       // $chatLadyIdList  = $collection->extract('code')->toArray();
+       //
+       // $userList       = $this->Logintimes->getLoginUserList( $totalLadyHash, $chatLadyIdList);
+       //
+       // $this->Logintimes->registLoginStaffData( $userList );
 
         $this->out('end task');
     }

@@ -609,5 +609,13 @@ div.message.hidden {
 }
 
 .to_supplier{
-    padding:20px 0 0 20px;
+    padding:20px 0 0 0;
+}
+
+.comment_contents{
+    margin:0;
+}
+
+.comment_each{
+    margin:15px 0;
 }

@@ -18,6 +18,11 @@
                   ]);
         ?>
 
+        <div class="to_supplier" >
+         <?php echo $this->Html->link( "この子とチャットする" , $lady->url ,['target' =>'_blank','class'=>'button to_dmm_button']);
+         ?>
+        </div>
+
         <div class="category">
             <?php
                if( !empty($lady->category) ) echo h($dmm_category_list[$lady->category]);
@@ -28,8 +33,13 @@
             <?= $lady->profile ?>
         </div>
 
+        <div class="to_supplier" >
+         <?php echo $this->Html->link( "この子とチャットする" , $lady->url ,['target' =>'_blank','class'=>'button to_dmm_button']);
+         ?>
+        </div>
+
         <div class="comment_add">
-            <?php echo $this->Form->input('comment'); ?>
+            <?php echo $this->Form->input('comment',['type'=>'textarea']); ?>
         </div>
         <?= $this->Form->button(__('コメントを書き込む')) ?>
 
@@ -37,14 +47,9 @@
            <?php foreach ($comments as $comment): ?>
            <div class="comment_each">
                <p class="comment_contents"><?php echo $comment['comment']; ?></p>
-               <span class="comment_each"><?php echo $comment['created']; ?></span>
+               <span class="comment_date"><?php echo $comment['created']; ?></span>
            </div>
            <?php endforeach; ?>
-        </div>
-
-        <div class="to_supplier" >
-         <?php echo $this->Html->link( "この子とチャットする" , $lady->url ,['target' =>'_blank','class'=>'button to_dmm_button']);
-         ?>
         </div>
 
     <?= $this->Form->end() ?>
